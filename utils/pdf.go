@@ -39,18 +39,18 @@ func GetFormat(title string) (*Format, error) {
 }
 
 // GeneratePDF generates a PDF from the given HTML content and saves it to a file
-func GeneratePDF(htmlContent string, format string, outputPath string) ([]byte, error) {
+func GeneratePDF(htmlContent string, format string, outputPath string) error {
 	// Ensure the directory exists
 	dir := filepath.Dir(outputPath)
 	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Retrieve the format
 	f, err := GetFormat(format)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	ctx, cancel := chromedp.NewContext(context.Background())
@@ -59,16 +59,16 @@ func GeneratePDF(htmlContent string, format string, outputPath string) ([]byte, 
 	var buf []byte
 	err = chromedp.Run(ctx, printToPDF(htmlContent, &buf, f))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Save the PDF to the specified path
 	err = SavePDF(outputPath, buf)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return buf, nil
+	return nil
 }
 
 func printToPDF(htmlContent string, res *[]byte, format *Format) chromedp.Tasks {

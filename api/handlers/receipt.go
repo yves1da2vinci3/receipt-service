@@ -2,42 +2,92 @@ package handlers
 
 import (
 	"fmt"
-	"log"
-	"receipt-service/models"
+	"receipt-service/pkg/entities"
 	"receipt-service/utils"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
+const (
+	eventTemplatePath      = "./pkg/receipt/templates/eventReceipt.hbs"
+	logementTemplatePath   = "./pkg/receipt/templates/logementReceipt.hbs"
+	defaultPDFOutputFormat = "A4"
+)
+
 func PrintReceipt(c *fiber.Ctx) error {
-	data := new(models.Data)
-	if err := c.BodyParser(data); err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+	QrcodeManager := new(utils.QrcodeManager)
+	TemplateManager := new(utils.TemplateManager)
+
+	receiptType := c.Query("receiptType")
+	var data interface{}
+
+	if receiptType == "logement" {
+		logementData := new(entities.LogementReceiptData)
+		if err := c.BodyParser(logementData); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+		}
+		data = logementData
+		TemplateManager.SetData(data)
+		QrcodeManager.SetContent(logementData.ReservationID)
+	} else if receiptType == "event" {
+		eventData := new(entities.EventReceiptData)
+		if err := c.BodyParser(eventData); err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+		}
+		data = eventData
+		TemplateManager.SetData(data)
+		QrcodeManager.SetContent(eventData.ReservationID)
+	} else {
+		return c.Status(fiber.StatusBadRequest).SendString("Invalid receipt type")
 	}
-	// renderinng HTML
-	renderedHTML, err := utils.RenderTemplate("./pkg/receipt/templates/template.hbs", data)
+
+	// Generate QR code
+	qrCodePath, err := utils.GenerateQRCodeFile(QrcodeManager.GetContent())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to generate QR code")
 	}
-	format := c.Query("format")
-	fmt.Printf("format: %s", format)
+	QrcodeManager.SetPath(qrCodePath)
+	// defer func() {
+	// 	if err := utils.DeleteQRCodeFile(QrcodeManager.GetPath()); err != nil {
+	// 		log.Printf("Failed to delete QR code file: %v", err)
+	// 	}
+	// }()
+
+	// Prepare template data
+	templateData := TemplateManager.GetDataMap()
+	fmt.Printf("path: %s ", QrcodeManager.GetPath())
+	templateData["qrcode"] = QrcodeManager.GetPath()
+
+	// Determine template path
+	templatePath := logementTemplatePath
+	if receiptType == "event" {
+		templatePath = eventTemplatePath
+	}
+
+	// Render HTML
+	renderedHTML, err := utils.RenderTemplate(templatePath, templateData)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to render template")
+	}
+
+	// Generate PDF
+	format := c.Query("format", defaultPDFOutputFormat)
 	id := uuid.New()
+	outputPath := fmt.Sprintf("./uploads/receipts/receipt_%s.pdf", id.String())
 
-	// Construct the file name with the UUID
-
-	outputPath := fmt.Sprintf("./uploads/receipt_%s.pdf", id.String())
-
-	pdfBytes, err := utils.GeneratePDF(renderedHTML, format, outputPath)
+	err = utils.GeneratePDF(renderedHTML, format, outputPath)
 	if err != nil {
-		log.Fatalf("Failed to generate PDF: %v", err)
+		return c.Status(fiber.StatusInternalServerError).SendString("Failed to generate PDF")
 	}
-	//
+
 	fmt.Printf("PDF saved to: %s\n", outputPath)
-	c.Set("Content-Type", "application/pdf")
-	return c.Send(pdfBytes)
+
+	return c.JSON(fiber.Map{"message": "PDF generated successfully", "path": outputPath})
 }
 
 func GetReceipt(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"message": "Hello World"})
+	path := c.Query("receiptPath")
+	fmt.Printf("Receipt path: %s\n", path)
+	return c.SendFile(fmt.Sprintf(".%s", path))
 }
