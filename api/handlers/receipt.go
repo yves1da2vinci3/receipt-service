@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"fmt"
+	"log"
+	"receipt-service/config"
+	"receipt-service/pkg/email"
 	"receipt-service/pkg/entities"
 	"receipt-service/utils"
 
@@ -57,7 +60,7 @@ func PrintReceipt(c *fiber.Ctx) error {
 	// Prepare template data
 	templateData := TemplateManager.GetDataMap()
 	fmt.Printf("path: %s ", QrcodeManager.GetPath())
-	templateData["qrcode"] = QrcodeManager.GetPath()
+	templateData["qrcode"] = fmt.Sprintf("./%s", QrcodeManager.GetPath())
 
 	// Determine template path
 	templatePath := logementTemplatePath
@@ -82,8 +85,22 @@ func PrintReceipt(c *fiber.Ctx) error {
 	}
 
 	fmt.Printf("PDF saved to: %s\n", outputPath)
+	// Set up your Gmail service
+	smtpHost := "smtp.gmail.com"
+	smtpPort := "587"
+	senderEmail := config.GoDotEnvVariable("GMAIL_EMAIL")
+	senderPassword := config.GoDotEnvVariable("GMAIL_PASSWORD")
+	fmt.Printf("email := %s\n", senderEmail)
+	emailService := email.NewSMTPEmailService(smtpHost, smtpPort, senderEmail, senderPassword)
 
-	return c.JSON(fiber.Map{"message": "PDF generated successfully", "path": outputPath})
+	// Send an email with an attached PDF
+	to := "yves.lionel.diomande@gmail.com"
+
+	err = emailService.SendEmail(to, outputPath)
+	if err != nil {
+		log.Fatalf("Failed to send email: %v", err)
+	}
+	return c.JSON(fiber.Map{"message": "PDF generated successfully"})
 }
 
 func GetReceipt(c *fiber.Ctx) error {

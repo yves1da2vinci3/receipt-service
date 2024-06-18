@@ -1,23 +1,20 @@
 package config
 
 import (
-	"fmt"
+	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
-var (
-	// PORT returns the server listening port
-	PORT = getEnv("PORT", "5000")
-)
+func GoDotEnvVariable(key string) string {
 
-func getEnv(name string, fallback string) string {
-	if value, exists := os.LookupEnv(name); exists {
-		return value
+	// load .env file
+	err := godotenv.Load(".env")
+
+	if err != nil {
+		log.Fatalf("Error loading .env file")
 	}
 
-	if fallback != "" {
-		return fallback
-	}
-
-	panic(fmt.Sprintf(`Environment variable not found :: %v`, name))
+	return os.Getenv(key)
 }
