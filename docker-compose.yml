@@ -3,10 +3,12 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
-      - "5672:5672"    # port AMQP
-      - "15672:15672"  # port de l'interface de gestion
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # RabbitMQ management UI port
     volumes:
-      - ./rabbitmq_data:/var/lib/rabbitmq  # mappe le répertoire local ./rabbitmq_data au répertoire /var/lib/rabbitmq dans le conteneur
+      - rabbitmq_data:/var/lib/rabbitmq  # Map local ./rabbitmq_data directory to /var/lib/rabbitmq in container
     environment:
-      RABBITMQ_DEFAULT_USER: "admin"  # nom d'utilisateur par défaut
-      RABBITMQ_DEFAULT_PASS: "admin"  # mot de passe par défaut
+      RABBITMQ_DEFAULT_USER: "admin"  # Default username
+      RABBITMQ_DEFAULT_PASS: "admin"  # Default password
+volumes:
+  rabbitmq_data:
