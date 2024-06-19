@@ -6,9 +6,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"receipt-service/api/handlers"
 	"receipt-service/api/routes"
 	"receipt-service/config"
 	"receipt-service/config/queue"
+	"receipt-service/pkg/email"
 	"receipt-service/pkg/entities"
 	"syscall"
 
@@ -53,7 +55,7 @@ func main() {
 	msgs, err := rabbitConfig.Channel.Consume(
 		q.Name,
 		"",
-		true,
+		false, // auto-ack to false,
 		false,
 		false,
 		false,
@@ -69,9 +71,36 @@ func main() {
 			err := json.Unmarshal(d.Body, &emailReq)
 			if err != nil {
 				log.Printf("Error decoding JSON: %s", err)
+				d.Ack(false)
 				continue
 			}
-			fmt.Printf("Email request: %v\n", emailReq)
+			fmt.Printf("Received email request: %+v\n", emailReq)
+
+			datum, err := json.Marshal(emailReq.Data)
+			if err != nil {
+				log.Fatalf("Error marshaling data: %v", err)
+			}
+
+			// Print email request
+			outputPath, err := handlers.PrintReceipt(emailReq.ReceiptType, datum)
+			if err != nil {
+				log.Printf("Failed to print receipt: %v", err)
+				continue
+			}
+			// Send email
+			smtpHost := "smtp.gmail.com"
+			smtpPort := "587"
+			senderEmail := config.GoDotEnvVariable("GMAIL_EMAIL")
+			senderPassword := config.GoDotEnvVariable("GMAIL_PASSWORD")
+			fmt.Printf("email := %s\n", senderEmail)
+			emailService := email.NewSMTPEmailService(smtpHost, smtpPort, senderEmail, senderPassword)
+
+			err = emailService.SendEmail(emailReq.UserEmail, outputPath)
+			if err != nil {
+				log.Fatalf("Failed to send email: %v", err)
+			}
+			// remove the message from the queue
+			d.Ack(false)
 		}
 	}()
 

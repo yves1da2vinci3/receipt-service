@@ -1,10 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"receipt-service/config"
-	"receipt-service/pkg/email"
 	"receipt-service/pkg/entities"
 	"receipt-service/utils"
 
@@ -15,47 +14,44 @@ import (
 const (
 	eventTemplatePath      = "./pkg/receipt/templates/eventReceipt.hbs"
 	logementTemplatePath   = "./pkg/receipt/templates/logementReceipt.hbs"
-	defaultPDFOutputFormat = "A4"
+	defaultPDFOutputFormat = "A5"
 )
 
-func PrintReceipt(c *fiber.Ctx) error {
+func PrintReceipt(receiptType string, datum []byte) (string, error) {
 	QrcodeManager := new(utils.QrcodeManager)
 	TemplateManager := new(utils.TemplateManager)
-
-	receiptType := c.Query("receiptType")
 	var data interface{}
 
 	if receiptType == "logement" {
 		logementData := new(entities.LogementReceiptData)
-		if err := c.BodyParser(logementData); err != nil {
-			return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+		err := json.Unmarshal(datum, &logementData)
+		if err != nil {
+			log.Printf("Error decoding JSON: %s", err)
+			return "", fmt.Errorf("invalid JSON data")
 		}
 		data = logementData
 		TemplateManager.SetData(data)
 		QrcodeManager.SetContent(logementData.ReservationID)
 	} else if receiptType == "event" {
 		eventData := new(entities.EventReceiptData)
-		if err := c.BodyParser(eventData); err != nil {
-			return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+		err := json.Unmarshal(datum, &eventData)
+		if err != nil {
+			log.Printf("Error decoding JSON: %s", err)
+			return "", fmt.Errorf("invalid JSON data")
 		}
 		data = eventData
 		TemplateManager.SetData(data)
 		QrcodeManager.SetContent(eventData.ReservationID)
 	} else {
-		return c.Status(fiber.StatusBadRequest).SendString("Invalid receipt type")
+		return "", fmt.Errorf("invalid receipt type")
 	}
 
 	// Generate QR code
 	qrCodePath, err := utils.GenerateQRCodeFile(QrcodeManager.GetContent())
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to generate QR code")
+		return "", fmt.Errorf("failed to generate QR code")
 	}
 	QrcodeManager.SetPath(qrCodePath)
-	// defer func() {
-	// 	if err := utils.DeleteQRCodeFile(QrcodeManager.GetPath()); err != nil {
-	// 		log.Printf("Failed to delete QR code file: %v", err)
-	// 	}
-	// }()
 
 	// Prepare template data
 	templateData := TemplateManager.GetDataMap()
@@ -71,36 +67,20 @@ func PrintReceipt(c *fiber.Ctx) error {
 	// Render HTML
 	renderedHTML, err := utils.RenderTemplate(templatePath, templateData)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to render template")
+		return "", fmt.Errorf("failed to render template")
 	}
 
 	// Generate PDF
-	format := c.Query("format", defaultPDFOutputFormat)
 	id := uuid.New()
 	outputPath := fmt.Sprintf("./uploads/receipts/receipt_%s.pdf", id.String())
 
-	err = utils.GeneratePDF(renderedHTML, format, outputPath)
+	err = utils.GeneratePDF(renderedHTML, defaultPDFOutputFormat, outputPath)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to generate PDF")
+		return "", fmt.Errorf("failed to generate PDF")
 	}
 
 	fmt.Printf("PDF saved to: %s\n", outputPath)
-	// Set up your Gmail service
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
-	senderEmail := config.GoDotEnvVariable("GMAIL_EMAIL")
-	senderPassword := config.GoDotEnvVariable("GMAIL_PASSWORD")
-	fmt.Printf("email := %s\n", senderEmail)
-	emailService := email.NewSMTPEmailService(smtpHost, smtpPort, senderEmail, senderPassword)
-
-	// Send an email with an attached PDF
-	to := "yves.lionel.diomande@gmail.com"
-
-	err = emailService.SendEmail(to, outputPath)
-	if err != nil {
-		log.Fatalf("Failed to send email: %v", err)
-	}
-	return c.JSON(fiber.Map{"message": "PDF generated successfully"})
+	return outputPath, nil
 }
 
 func GetReceipt(c *fiber.Ctx) error {

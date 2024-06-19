@@ -44,13 +44,16 @@ func (r *RabbitMQConfig) Close() {
 }
 
 func (r *RabbitMQConfig) DeclareQueue(queueName string) (amqp.Queue, error) {
+	args := amqp.Table{
+		"x-message-ttl": int32(172800000), // 2 days in milliseconds
+	}
 	queue, err := r.Channel.QueueDeclare(
 		queueName,
 		true,  // durable
 		false, // delete when unused
 		false, // exclusive
 		false, // no-wait
-		nil,   // arguments
+		args,  // arguments
 	)
 	return queue, err
 }
