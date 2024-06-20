@@ -79,6 +79,10 @@ func printToPDF(htmlContent string, res *[]byte, format *Format) chromedp.Tasks 
 				WithPrintBackground(true).
 				WithPaperWidth(format.Width).
 				WithPaperHeight(format.Height).
+				WithMarginTop(0.0).
+				WithMarginBottom(0.0).
+				WithMarginLeft(0.0).
+				WithMarginRight(0.0).
 				Do(ctx)
 			if err != nil {
 				return err
