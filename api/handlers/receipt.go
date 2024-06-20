@@ -56,7 +56,7 @@ func PrintReceipt(receiptType string, datum []byte) (string, error) {
 	// Prepare template data
 	templateData := TemplateManager.GetDataMap()
 	fmt.Printf("path: %s ", QrcodeManager.GetPath())
-	templateData["qrcode"] = fmt.Sprintf("./%s", QrcodeManager.GetPath())
+	templateData["qrcode"] = fmt.Sprintf("http://localhost:5000/api/receipts?receiptPath=/%s", QrcodeManager.GetPath())
 
 	// Determine template path
 	templatePath := logementTemplatePath
@@ -65,6 +65,7 @@ func PrintReceipt(receiptType string, datum []byte) (string, error) {
 	}
 
 	// Render HTML
+	fmt.Printf("template %v\n", templateData)
 	renderedHTML, err := utils.RenderTemplate(templatePath, templateData)
 	if err != nil {
 		return "", fmt.Errorf("failed to render template")
