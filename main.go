@@ -85,6 +85,7 @@ func main() {
 			outputPath, err := handlers.PrintReceipt(emailReq.ReceiptType, datum)
 			if err != nil {
 				log.Printf("Failed to print receipt: %v", err)
+				d.Nack(false, true) // Requeue the message for retry
 				continue
 			}
 			// Send email
@@ -98,6 +99,7 @@ func main() {
 			err = emailService.SendEmail(emailReq.UserEmail, outputPath)
 			if err != nil {
 				log.Fatalf("Failed to send email: %v", err)
+				d.Nack(false, true) // Requeue the message for retry
 			}
 			// remove the message from the queue
 			d.Ack(false)

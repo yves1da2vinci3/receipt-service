@@ -12,25 +12,20 @@ type RabbitMQConfig struct {
 }
 
 func NewRabbitMQConfig() (*RabbitMQConfig, error) {
-	amqpURL := os.Getenv("AMQP_URL")
-	if amqpURL == "" {
-		amqpURL = "amqp://admin:admin@localhost:5672/" // default value for development
-	}
-
-	connection, err := amqp.Dial(amqpURL)
+	conn, err := amqp.Dial(os.Getenv("AMQP_URL"))
 	if err != nil {
 		return nil, err
 	}
 
-	channel, err := connection.Channel()
+	ch, err := conn.Channel()
 	if err != nil {
-		connection.Close()
+		conn.Close()
 		return nil, err
 	}
 
 	return &RabbitMQConfig{
-		Connection: connection,
-		Channel:    channel,
+		Connection: conn,
+		Channel:    ch,
 	}, nil
 }
 
@@ -45,8 +40,10 @@ func (r *RabbitMQConfig) Close() {
 
 func (r *RabbitMQConfig) DeclareQueue(queueName string) (amqp.Queue, error) {
 	args := amqp.Table{
-		"x-message-ttl": int32(172800000), // 2 days in milliseconds
+		"x-dead-letter-exchange": "dlx_exchange",
+		"x-message-ttl":          int32(172800000), // 2 days in milliseconds
 	}
+
 	queue, err := r.Channel.QueueDeclare(
 		queueName,
 		true,  // durable
@@ -55,5 +52,47 @@ func (r *RabbitMQConfig) DeclareQueue(queueName string) (amqp.Queue, error) {
 		false, // no-wait
 		args,  // arguments
 	)
-	return queue, err
+	if err != nil {
+		return queue, err
+	}
+
+	// Declare the dead-letter queue
+	_, err = r.Channel.QueueDeclare(
+		"dlx_queue",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return queue, err
+	}
+
+	// Bind the dead-letter queue to the dead-letter exchange
+	err = r.Channel.ExchangeDeclare(
+		"dlx_exchange",
+		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return queue, err
+	}
+
+	err = r.Channel.QueueBind(
+		"dlx_queue",
+		"",
+		"dlx_exchange",
+		false,
+		nil,
+	)
+	if err != nil {
+		return queue, err
+	}
+
+	return queue, nil
 }
