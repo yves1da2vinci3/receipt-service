@@ -1,0 +1,148 @@
+Receipt Service
+The Receipt Service is a Go application designed to handle receipt generation and email sending asynchronously using RabbitMQ. It listens for incoming messages on a RabbitMQ queue, generates a PDF receipt based on the provided HTML template, and sends the receipt via email.
+
+Features
+Asynchronous processing using RabbitMQ
+PDF generation from HTML templates
+Email sending using Gmail SMTP
+Dockerized RabbitMQ setup
+Prerequisites
+Go 1.16+
+Docker and Docker Compose
+RabbitMQ
+Chrome/Chromium for headless PDF generation
+Setup
+RabbitMQ with Docker Compose
+To set up RabbitMQ, create a docker-compose.yml file with the following content:
+
+yaml
+Copier le code
+version: '3.9'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "admin"
+volumes:
+  rabbitmq_data:
+Run RabbitMQ using Docker Compose:
+
+sh
+Copier le code
+docker-compose up -d
+Environment Variables
+Create a .env file in the root of your project with the following content:
+
+makefile
+Copier le code
+PORT=3000
+AMQP_URL=amqp://admin:admin@localhost:5672/
+GMAIL_EMAIL=your-email@gmail.com
+GMAIL_PASSWORD=your-email-password
+Project Structure
+plaintext
+Copier le code
+.
+├── api
+│   └── handlers
+│       └── receipt_handler.go
+│   └── routes
+│       └── routes.go
+├── config
+│   └── queue
+│       └── rabbitmq_config.go
+├── pkg
+│   └── email
+│       └── email.go
+│   └── entities
+│       └── email_request.go
+├── utils
+│   └── pdf.go
+├── main.go
+├── Dockerfile
+├── .env
+├── go.mod
+└── go.sum
+Go Modules
+Initialize Go modules and install dependencies:
+
+sh
+Copier le code
+go mod init receipt-service
+go get github.com/streadway/amqp
+go get github.com/gofiber/fiber/v2
+go get github.com/chromedp/chromedp
+go get github.com/joho/godotenv
+Running the Application
+To run the application:
+
+sh
+Copier le code
+go run main.go
+Usage
+Send a message to the RabbitMQ queue (email_queue) with the necessary information (email address, PDF path, etc.).
+The Go application listens to the queue, processes the message, generates the PDF, and sends the email.
+Example JSON for Queue Message
+json
+Copier le code
+{
+  "userEmail": "john.doe@example.com",
+  "receiptType": "A5",
+  "data": {
+    "logementName": "Villa Bella",
+    "reservationDate": "2024-06-23",
+    "startDate": "2024-06-25",
+    "endDate": "2024-07-05",
+    "userName": "John Doe",
+    "reservationId": "1234567890",
+    "qrcode": "./uploads/qrcodes/qrcode_1234567890.png"
+  }
+}
+Sending a Message to RabbitMQ (Node.js Example)
+js
+Copier le code
+import amqp from "amqplib";
+
+// RabbitMQ connection URL
+const amqpUrl = 'amqp://admin:admin@localhost:5672';
+
+async function sendToQueue(queue, message) {
+    const connection = await amqp.connect(amqpUrl);
+    const channel = await connection.createChannel();
+    await channel.assertQueue(queue, { durable: true });
+    channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)), {
+      persistent: true
+    });
+    console.log(`Message sent to queue ${queue}:`, message);
+    await channel.close();
+    await connection.close();
+}
+
+const message = {
+  userEmail: "john.doe@example.com",
+  receiptType: "A5",
+  data: {
+    logementName: "Villa Bella",
+    reservationDate: "2024-06-23",
+    startDate: "2024-06-25",
+    endDate: "2024-07-05",
+    userName: "John Doe",
+    reservationId: "1234567890",
+    qrcode: "./uploads/qrcodes/qrcode_1234567890.png"
+  }
+};
+
+sendToQueue("email_queue", message);
+Contributing
+Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
+
+License
+This project is licensed under the MIT License.
+
+Feel free to modify and expand this README to better fit your project's specific needs.
