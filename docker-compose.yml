@@ -8,7 +8,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq  # Map local ./rabbitmq_data directory to /var/lib/rabbitmq in container
     environment:
-      RABBITMQ_DEFAULT_USER: "admin"  # Default username
-      RABBITMQ_DEFAULT_PASS: "admin"  # Default password
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}  # Default username
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}  # Default password
 volumes:
   rabbitmq_data:
