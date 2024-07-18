@@ -6,6 +6,6 @@ type LogementReceiptData struct {
 	StartDate       string  `json:"startDate"`
 	EndDate         string  `json:"endDate"`
 	UserName        string  `json:"userName"`
-	ReservationID   string  `json:"reservationID"`
+	ReservationID   string  `json:"reservationId"`
 	QRCode          *string `json:"qrcode,omitempty"`
 }
